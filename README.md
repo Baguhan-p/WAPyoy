@@ -79,3 +79,32 @@ PNG/JPG размером ~64–256px. Если захочешь другое и�
 
 «Играть», «Загрузить сохранение», «Редактор карт», «Редактор клеток (шестиугольники)»,
 «Редактор юнитов», «Редактор зданий», «Редактор объектов» — сейчас показывают экран «🚧 в разработке».
+
+# --- Push & Pull Request ---
+
+Для отправки кода на GitHub и создания PR используй скрипт `push-pullrequest.ps1`
+(Windows PowerShell): он коммитит изменения, пушит ветку
+`feature/v0.1-game-menu-resource-editor` в `https://github.com/BlackAimo/hexcraft.git`
+и создаёт Pull Request (через `gh` или открывает страницу `compare/main...ветка` в браузере).
+Подробности — в комментариях внутри скрипта.
+
+### Способ 2: без учётных данных в песочнице — git bundle
+
+В этом рабочем окружении нет доступа к GitHub (репозиторий приватный, токена нет),
+поэтому весь код v0.1 упакован в `hexcraft-v0.1.bundle` (полная git-история, 2 коммита).
+Скачай bundle и у себя в папке репозитория выполни:
+
+```powershell
+git pull ..\hexcraft-v0.1.bundle feature/v0.1-game-menu-resource-editor:feature/v0.1-game-menu-resource-editor
+git push origin feature/v0.1-game-menu-resource-editor
+```
+
+Затем создай PR: `https://github.com/BlackAimo/hexcraft/compare/main...feature/v0.1-game-menu-resource-editor`
+(или через скрипт `push-pullrequest.ps1`, если работаешь локально с клонированным репо).
+
+### Способ 3: токен прямо здесь (я сам создам PR)
+
+Если дашь Personal Access Token, я выполню push и открою PR сам:
+1. GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic) → Generate new token
+2. Выбери репозиторий `BlackAimo/hexcraft`, scope: **repo**
+3. Пришли токен сюда — я сделаю `git push` и создам Pull Request через GitHub API.
