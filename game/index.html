@@ -253,6 +253,262 @@
   </div>
 </div>
 
+<!-- ======== РЕДАКТОР ЗДАНИЙ ======== -->
+<div id="screen-buildeditor" class="screen">
+  <header class="topbar">
+    <button class="btn btn-back" data-nav="modeditor">← Назад</button>
+    <h2>🏠 Редактор зданий</h2>
+    <span class="topbar-space"></span>
+  </header>
+
+  <div class="hint">
+    Стандартные здания (помечены 🔒) изменять и удалять нельзя. У своих зданий можно
+    задать несколько картинок — в игре при постройке выбирается случайная.
+    Текстурпак — группа зданий, которую редактор карт выберет для партии целиком.
+  </div>
+
+  <div class="field" style="margin-bottom:12px">
+    <span>Фильтр по текстурпаку</span>
+    <select id="build-pack-filter" class="select"></select>
+  </div>
+
+  <div id="build-list" class="cards"></div>
+  <button id="btn-new-building" class="btn btn-primary block">＋ Создать своё здание</button>
+</div>
+
+<!-- ======== ФОРМА РЕДАКТИРОВАНИЯ ЗДАНИЯ ======== -->
+<div id="screen-buildedit" class="screen">
+  <header class="topbar">
+    <button class="btn btn-back" data-nav="buildeditor-back">← Назад</button>
+    <h2 id="buildedit-title">Здание</h2>
+    <span class="topbar-space"></span>
+  </header>
+  <div class="form">
+    <div class="preview-box">
+      <div id="buildedit-preview" class="preview-render unit-preview"></div>
+      <div id="buildedit-badge" class="badge"></div>
+    </div>
+
+    <label class="field">
+      <span>Название здания</span>
+      <input id="build-name" type="text" maxlength="30" placeholder="Например: Запасной форт">
+    </label>
+
+    <div class="field">
+      <span>Картинки здания <small class="muted" id="build-imgcount"></small></span>
+      <div id="build-imglist" class="imgstrip"></div>
+      <div class="btnrow">
+        <button id="build-addimg" class="btn grow">🖼 Добавить картинку…</button>
+        <button id="build-clearimgs" class="btn">Очистить</button>
+      </div>
+      <small class="muted">Если картинок несколько, игра ставит случайную при постройке.</small>
+    </div>
+
+    <label class="switch-field">
+      <input id="build-capital" type="checkbox">
+      <span>Столица <small class="muted">(уникальное стартовое здание игрока; при уничтожении переезжает: ферма → пустая клетка → другое незахватываемое здание)</small></span>
+    </label>
+
+    <label class="switch-field">
+      <input id="build-capturable" type="checkbox">
+      <span>Можно захватить <small class="muted">(для захвата нужно окружить юнитами)</small></span>
+    </label>
+    <div class="subfields" id="capture-fields">
+      <label class="field">
+        <span>Радиус окружения <small class="muted">(1 = соседние шестиугольники)</small></span>
+        <input id="build-capture-radius" type="number" step="1" min="1" inputmode="numeric" placeholder="1">
+      </label>
+    </div>
+
+    <label class="field">
+      <span>Уровень защиты <small class="muted">(0 — любой может захватить/сломать)</small></span>
+      <input id="build-armor" type="number" step="0.1" min="0" inputmode="decimal" placeholder="0">
+    </label>
+
+    <label class="switch-field">
+      <input id="build-area-protect" type="checkbox">
+      <span>Защита по области <small class="muted">(слабозащищённые юниты не входят в зону)</small></span>
+    </label>
+    <div class="subfields" id="barea-fields">
+      <label class="switch-field">
+        <input id="build-protect-self" type="checkbox">
+        <span>Защищает и себя</span>
+      </label>
+      <label class="field">
+        <span>Радиус области <small class="muted">(1 = соседние шестиугольники)</small></span>
+        <input id="build-area-size" type="number" step="1" min="1" inputmode="numeric" placeholder="1">
+      </label>
+    </div>
+
+    <div class="section-title">💰 Стоимость постройки <small class="muted">(пусто = бесплатно)</small></div>
+    <div id="build-cost-list" class="reslist"></div>
+    <button id="build-add-cost" class="btn block small-btn">＋ Добавить ресурс в стоимость</button>
+    <label class="switch-field">
+      <input id="build-cost-grow" type="checkbox">
+      <span>Стоимость растёт при постройке</span>
+    </label>
+    <label class="switch-field">
+      <input id="build-cost-shrink" type="checkbox">
+      <span>Стоимость уменьшается при уничтожении</span>
+    </label>
+    <div class="subfields" id="bcost-delta-fields">
+      <label class="field">
+        <span>Δ стоимости за событие</span>
+        <input id="build-cost-delta" type="number" step="0.5" min="0" inputmode="decimal" placeholder="0">
+      </label>
+    </div>
+
+    <div class="section-title">⚙ Доход / убыток за ход <small class="muted">(отрицательное число = убыток)</small></div>
+    <label class="switch-field">
+      <input id="build-income-enabled" type="checkbox">
+      <span>Здание приносит доход или убыток ресурсов каждый ход</span>
+    </label>
+    <div class="subfields" id="income-fields">
+      <div id="build-income-list" class="reslist"></div>
+      <button id="build-add-income" class="btn block small-btn">＋ Добавить ресурс дохода</button>
+    </div>
+
+    <label class="field">
+      <span>Текстурпак <small class="muted">(редактор карт выберет пак — включится эта группа зданий)</small></span>
+      <input id="build-texturepack" type="text" maxlength="24" placeholder="default">
+    </label>
+
+    <div class="btnrow">
+      <button id="buildedit-save" class="btn btn-primary grow">💾 Сохранить</button>
+      <button id="buildedit-delete" class="btn btn-danger">🗑 Удалить</button>
+    </div>
+  </div>
+</div>
+
+<!-- ======== РЕДАКТОР КАРТ: СПИСОК КАРТ ======== -->
+<div id="screen-maplist" class="screen">
+  <header class="topbar">
+    <button class="btn btn-back" data-nav="main">← Назад</button>
+    <h2>🗺 Редактор карт</h2>
+    <span class="topbar-space"></span>
+  </header>
+  <div class="hint">
+    Карты хранятся локально. Рисуйте поле из шестиугольников, создавайте игроков,
+    красите клетки в их цвета, расставляйте здания и юнитов выбранного текстурпака.
+  </div>
+  <div id="map-list" class="cards"></div>
+  <button id="btn-new-map" class="btn btn-primary block">＋ Новая карта</button>
+</div>
+
+<!-- ======== РЕДАКТОР КАРТ: ХОЛСТ ======== -->
+<div id="screen-mapeditor" class="screen map-fullscreen">
+  <header class="topbar">
+    <button class="btn btn-back" data-nav="maplist-back">← Карты</button>
+    <input id="map-name" class="title-input" type="text" maxlength="40" placeholder="Название карты">
+    <button id="map-save" class="btn btn-primary small-btn">💾</button>
+    <button id="map-play" class="btn btn-success small-btn">▶ Играть</button>
+  </header>
+
+  <!-- панель инструментов: один тап — выбор инструмента -->
+  <div id="map-toolbar" class="map-toolbar">
+    <button class="mt tool active" data-tool="paint" title="Красить клетки">🖌<span>Краска</span></button>
+    <button class="mt tool" data-tool="erase" title="Стереть клетку (обесцветить)">🧽<span>Ластик</span></button>
+    <button class="mt tool" data-tool="addhex" title="Добавить шестиугольник">⬡<span>Хекс +</span></button>
+    <button class="mt tool" data-tool="delhex" title="Удалить шестиугольник">✂<span>Хекс −</span></button>
+    <button class="mt tool" data-tool="building" title="Поставить здание">🏠<span>Здание</span></button>
+    <button class="mt tool" data-tool="unit" title="Поставить юнита">🛡<span>Юнит</span></button>
+    <button class="mt tool" data-tool="erasestuff" title="Снять здание/юнита с клетки">🚮<span>Снять</span></button>
+    <button class="mt mode-toggle" id="btn-panmode" title="Режим навигации: панорама одним пальцем">✋<span>Рука</span></button>
+    <button class="mt" id="btn-players" title="Игроки">👥<span>Игроки</span></button>
+    <button class="mt" id="btn-pack" title="Текстурпак">🎨<span>Пак</span></button>
+    <button class="mt" id="btn-size" title="Размер поля">⤢<span>Размер</span></button>
+  </div>
+
+  <!-- контекстная строка выбранного инструмента -->
+  <div id="map-ctx" class="map-ctx"></div>
+
+  <div id="map-viewport" class="map-viewport">
+    <svg id="map-svg" class="map-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div class="zoom-btns">
+      <button id="zoom-in" class="zbtn">＋</button>
+      <button id="zoom-out" class="zbtn">－</button>
+      <button id="zoom-fit" class="zbtn">⛶</button>
+    </div>
+  </div>
+  <div id="map-status" class="map-status"></div>
+</div>
+
+<!-- ======== МОДАЛКА: ИГРОКИ ======== -->
+<div id="modal-players" class="modal hidden">
+  <div class="modal-panel">
+    <h3>👥 Игроки карты</h3>
+    <div class="modal-scroll">
+      <div id="player-list" class="cards"></div>
+      <div id="player-editor" class="player-editor hidden">
+        <label class="field"><span>Название страны</span>
+          <input id="pl-name" type="text" maxlength="24" placeholder="Например: Франкское королевство"></label>
+        <div class="field"><span>Цвет</span>
+          <div id="pl-colors" class="swatches"></div>
+          <label class="btn small-btn">🎯 Свой цвет <input id="pl-color-pick" type="color" value="#e6c34a" hidden></label>
+        </div>
+        <div class="field"><span>Флаг (картинка)</span>
+          <div class="btnrow">
+            <div id="pl-flag-preview" class="flag-preview"></div>
+            <button id="pl-pick-flag" class="btn grow">🖼 Выбрать флаг…</button>
+            <button id="pl-clear-flag" class="btn">✕</button>
+          </div>
+        </div>
+        <div class="section-title">🎒 Стартовый набор ресурсов</div>
+        <div id="pl-startres" class="reslist"></div>
+        <button id="pl-add-res" class="btn block small-btn">＋ Добавить ресурс</button>
+        <div class="btnrow">
+          <button id="pl-ok" class="btn btn-primary grow">✔ Готово</button>
+          <button id="pl-cancel" class="btn">Отмена</button>
+        </div>
+      </div>
+    </div>
+    <div class="btnrow">
+      <button id="btn-add-player" class="btn btn-primary grow">＋ Добавить игрока</button>
+      <button id="players-close" class="btn">Закрыть</button>
+    </div>
+  </div>
+</div>
+
+<!-- ======== МОДАЛКА: ТЕКСТУРПАК ======== -->
+<div id="modal-pack" class="modal hidden">
+  <div class="modal-panel">
+    <h3>🎨 Текстурпак карты</h3>
+    <p class="muted modal-desc">Выбранный пак автоматически включает группу юнитов и зданий этой темы на время партии.</p>
+    <div class="modal-scroll"><div id="pack-list" class="cards"></div></div>
+    <button id="pack-close" class="btn block">Закрыть</button>
+  </div>
+</div>
+
+<!-- ======== МОДАЛКА: РАЗМЕР ПОЛЯ ======== -->
+<div id="modal-size" class="modal hidden">
+  <div class="modal-panel">
+    <h3>⤢ Размер поля</h3>
+    <label class="field"><span>Ширина (клеток)</span>
+      <input id="size-w" type="number" min="3" max="120" step="1" inputmode="numeric"></label>
+    <label class="field"><span>Высота (рядов)</span>
+      <input id="size-h" type="number" min="3" max="120" step="1" inputmode="numeric"></label>
+    <small class="muted">Поле прямоугольное: чётные ряды смещены на полхекса. Изменение размера не удаляет клетки вне новых границ — они скрываются.</small>
+    <div class="btnrow">
+      <button id="size-ok" class="btn btn-primary grow">✔ Применить</button>
+      <button id="size-cancel" class="btn">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<!-- ======== ПРОСМОТР ИГРЫ (без геймплея) ======== -->
+<div id="screen-gameview" class="screen map-fullscreen">
+  <header class="topbar">
+    <button class="btn btn-back" data-nav="gameview-back">← В редактор</button>
+    <h2 id="gv-title">Игра</h2>
+    <span class="topbar-space"></span>
+  </header>
+  <div id="gv-legend" class="gv-legend"></div>
+  <div id="gv-viewport" class="map-viewport">
+    <svg id="gv-svg" class="map-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+  <div class="coming-note">▶ Геймплей появится в следующих версиях — сейчас карта показывается в режиме просмотра.</div>
+</div>
+
 <!-- ======== ЗАГЛУШКИ ======== -->
 <div id="screen-placeholder" class="screen">
   <header class="topbar">

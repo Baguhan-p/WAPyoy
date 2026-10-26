@@ -79,6 +79,22 @@
       return lsSet("units", arr);
     },
 
+    /* ---- Пользовательские здания: [{id,name,imageIds[],...}] ---- */
+    getBuildings: function () {
+      return lsGet("buildings", []);
+    },
+    saveBuildings: function (arr) {
+      return lsSet("buildings", arr);
+    },
+
+    /* ---- Карты: [{id,name,data:{name,width,height,texturepack,players,cells,units,buildings},updated}] ---- */
+    getMaps: function () {
+      return lsGet("maps", []);
+    },
+    saveMaps: function (arr) {
+      return lsSet("maps", arr);
+    },
+
     /* ---- Прочее (сохранения игры и т.д.) ---- */
     getRaw: function (key, fb) { return lsGet(key, fb); },
     setRaw: function (key, val) { return lsSet(key, val); }

@@ -18,7 +18,18 @@
       { id: "img_ww2_warrior2",  name: "ww2_warrior2",  src: "assets/images/ww2_warrior2.png"  },
       { id: "img_ww2_warrior3",  name: "ww2_warrior3",  src: "assets/images/ww2_warrior3.png"  },
       { id: "img_light_tank1",   name: "light_tank1",   src: "assets/images/light_tank1.png"   },
-      { id: "img_light_tank2",   name: "light_tank2",   src: "assets/images/light_tank2.png"   }
+      { id: "img_light_tank2",   name: "light_tank2",   src: "assets/images/light_tank2.png"   },
+      /* Картинки зданий — game/assets/images/<файл>.png */
+      { id: "img_town",     name: "town",     src: "assets/images/town.png"     },
+      { id: "img_house1",   name: "house1",   src: "assets/images/house1.png"   },
+      { id: "img_cave1",    name: "cave1",    src: "assets/images/cave1.png"    },
+      { id: "img_fabric1",  name: "fabric1",  src: "assets/images/fabric1.png"  },
+      { id: "img_fabric2",  name: "fabric2",  src: "assets/images/fabric2.png"  },
+      { id: "img_outpost1", name: "outpost1", src: "assets/images/outpost1.png" },
+      { id: "img_bunker1",  name: "bunker1",  src: "assets/images/bunker1.png"  },
+      { id: "img_castle1",  name: "castle1",  src: "assets/images/castle1.png"  },
+      /* Белый шестиугольник — базовая плитка поля (её красят в цвет игрока) */
+      { id: "img_hex",      name: "hex (белый шестиугольник)", src: "assets/images/hex.png" }
     ],
 
     /* Стандартные ресурсы (заготовки: название + картинка). readonly = true. */
@@ -115,6 +126,57 @@
         costGrow: false, costShrinkOnKill: false, costDelta: 0,
         upkeepEnabled: true, upkeep: [{ resourceId: "res_gold", value: 31 }],
         dieOnEmpty: true
+      }
+    ],
+
+    /* ===== Стандартные здания (readonly = true, изменять нельзя) =====
+     * Атрибуты: name, imageIds[] (при >1 игра ставит случайную картинку),
+     * cost[] (пусто = бесплатно), income[] (+ доход / - убыток за ход),
+     * costGrow/costShrink/costDelta, armor (0 — любой может захватить/сломать),
+     * capturable + captureRadius (для захвата нужно окружить юнитами),
+     * areaProtect/protectSelf/areaSize (защита по области шестиугольников),
+     * capital (уникальная столица игрока; при уничтожении переезжает:
+     *  случайная ферма -> пустая клетка -> случайное незахватываемое здание),
+     * texturepack. */
+    defaultBuildings: [
+      {
+        id: "bld_town", name: "Столица", imageIds: ["img_town"],
+        texturepack: "ww2", readonly: true,
+        capital: true, capturable: false, captureRadius: 0,
+        armor: 0,
+        cost: [],
+        incomeEnabled: true, income: [{ resourceId: "res_gold", value: 5 }],
+        costGrow: false, costShrink: false, costDelta: 0
+      },
+      {
+        id: "bld_production", name: "Ферма",
+        imageIds: ["img_house1", "img_cave1", "img_fabric1", "img_fabric2"],
+        texturepack: "ww2", readonly: true,
+        capital: false, capturable: false, captureRadius: 0,
+        armor: 0,
+        cost: [{ resourceId: "res_gold", value: 12 }],
+        incomeEnabled: true, income: [{ resourceId: "res_gold", value: 4 }],
+        costGrow: true, costShrink: true, costDelta: 2
+      },
+      {
+        id: "bld_outpost", name: "Форт",
+        imageIds: ["img_outpost1"],
+        texturepack: "ww2", readonly: true,
+        capital: false, capturable: false, captureRadius: 0,
+        armor: 2, areaProtect: true, protectSelf: true, areaSize: 1,
+        cost: [],
+        incomeEnabled: true, income: [{ resourceId: "res_gold", value: -3 }],
+        costGrow: false, costShrink: false, costDelta: 0
+      },
+      {
+        id: "bld_bunker", name: "Бункер",
+        imageIds: ["img_bunker1"],
+        texturepack: "ww2", readonly: true,
+        capital: false, capturable: false, captureRadius: 0,
+        armor: 3, areaProtect: true, protectSelf: true, areaSize: 1,
+        cost: [],
+        incomeEnabled: true, income: [{ resourceId: "res_gold", value: -7 }],
+        costGrow: false, costShrink: false, costDelta: 0
       }
     ]
   };
