@@ -71,6 +71,14 @@
       return lsSet("resources", arr);
     },
 
+    /* ---- Пользовательские юниты: [{id,name,imageId,armor,...}] ---- */
+    getUnits: function () {
+      return lsGet("units", []);
+    },
+    saveUnits: function (arr) {
+      return lsSet("units", arr);
+    },
+
     /* ---- Прочее (сохранения игры и т.д.) ---- */
     getRaw: function (key, fb) { return lsGet(key, fb); },
     setRaw: function (key, val) { return lsSet(key, val); }

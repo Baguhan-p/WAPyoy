@@ -7,11 +7,10 @@
   /* ================= Навигация между экранами ================= */
   var navStack = [];
   var PLACEHOLDERS = {
-    "play":        ["▶ Играть", "Геймплей появится в следующей версии. Сейчас доступен редактор ресурсов!"],
+    "play":        ["▶ Играть", "Геймплей появится в следующей версии. Сейчас доступны редакторы ресурсов и юнитов!"],
     "load":        ["💾 Загрузить сохранение", "Сохранения появятся вместе с режимом игры."],
-    "map-editor":  ["🗺 Редактор карт", "Редактор шестиугольных карт — в разработке."],
+    "map-editor":  ["🗺 Редактор карт", "Редактор шестиугольных карт — в разработке. Там можно будет выбрать текстурпак — игра автоматически включит группу юнитов этого пака на время партии."],
     "celleditor":  ["⬡ Редактор клеток", "Редактор типов клеток-шестиугольников — в разработке."],
-    "uniteditor":  ["🛡 Редактор юнитов", "Редактор юнитов — в разработке."],
     "buildeditor": ["🏠 Редактор зданий", "Редактор зданий — в разработке."],
     "objeditor":   ["📦 Редактор объектов", "Редактор объектов карты — в разработке."]
   };
@@ -35,6 +34,7 @@
     if (target === "about") { showScreen("about"); return; }
     if (target === "mod-editor") { showScreen("modeditor"); return; }
     if (target === "reseditor") { openResourceEditor(); return; }
+    if (target === "uniteditor") { openUnitEditor(); return; }
 
     if (PLACEHOLDERS[target]) {
       $("ph-title").textContent = PLACEHOLDERS[target][0];
@@ -51,6 +51,7 @@
       prev = navStack.pop();
     }
     if (prev === "reseditor") openResourceEditor();
+    else if (prev === "uniteditor") openUnitEditor();
     else showScreen(prev || "main");
   }
 
@@ -61,6 +62,7 @@
     var nav = btn.getAttribute("data-nav");
     if (nav === "back-ph") { goBack(); return; }
     if (nav === "reseditor-back") { goBack("reseditor"); return; }
+    if (nav === "uniteditor-back") { goBack("uniteditor"); return; }
     if (nav === "main") { navStack = []; showScreen("main"); return; }
     navigate(nav);
   });
@@ -219,10 +221,15 @@
   }
 
   function onDeleteImage(id, name) {
-    // нельзя удалить картинку, которую использует свой ресурс
+    // нельзя удалить картинку, которую использует свой ресурс или свой юнит
     var used = HCStorage.getResources().filter(function (r) { return r.imageId === id; });
     if (used.length > 0) {
       toast("⚠ Картинку использует ресурс «" + used[0].name + "» — сначала замените её у ресурса");
+      return;
+    }
+    var usedByUnit = HCStorage.getUnits().filter(function (u) { return u.imageId === id; });
+    if (usedByUnit.length > 0) {
+      toast("⚠ Картинку использует юнит «" + usedByUnit[0].name + "» — сначала замените её у юнита");
       return;
     }
     if (!confirm("Удалить картинку «" + name + "»?")) return;
@@ -455,11 +462,438 @@
     toast("Создайте ресурс: название + картинка");
   });
 
-  /* ================= Открытие редактора ================= */
+  /* ================= Открытие редакторов ================= */
   function openResourceEditor() {
     renderResourceList();
     renderImageList();
     showScreen("reseditor");
+  }
+
+  /* =================================================================
+   *                    РЕДАКТОР ЮНИТОВ
+   * ================================================================= */
+
+  /* Все юниты: стандартные (readonly) + свои из HCStorage */
+  function allUnits() {
+    return HCData.defaultUnits.concat(HCStorage.getUnits());
+  }
+  function findUnit(id) {
+    var list = allUnits();
+    for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
+    return null;
+  }
+  function isUnitReadonly(u) { return !!(u && u.readonly); }
+
+  /* Список всех текстурпаков среди юнитов */
+  function allTexturepacks() {
+    var seen = {}, out = [];
+    allUnits().forEach(function (u) {
+      var p = (u.texturepack || "default").trim() || "default";
+      if (!seen[p]) { seen[p] = true; out.push(p); }
+    });
+    return out.sort();
+  }
+
+  function resName(resourceId) {
+    var r = findResource(resourceId);
+    return r ? r.name : resourceId;
+  }
+
+  function fmtNum(v) {
+    var n = Number(v);
+    if (isNaN(n)) return "0";
+    return (n % 1 === 0) ? String(n) : String(n).replace(".", ",");
+  }
+
+  function unitSummary(u) {
+    var parts = ["🛡 " + fmtNum(u.armor)];
+    if (u.areaProtect) parts.push("⬡ зона " + fmtNum(u.areaSize));
+    var costStr = (u.cost || []).map(function (c) { return fmtNum(c.value) + " " + resName(c.resourceId); }).join(" + ");
+    if (costStr) parts.push("💰 " + costStr);
+    if (u.upkeepEnabled && (u.upkeep || []).length) {
+      parts.push("⚙ " + u.upkeep.map(function (c) { return fmtNum(c.value) + "/ход"; }).join(" + "));
+    }
+    return parts.join(" · ");
+  }
+
+  /* ---- Фильтр по текстурпаку ---- */
+  var packFilter = "all";
+
+  function renderPackFilter() {
+    var sel = $("unit-pack-filter");
+    var packs = allTexturepacks();
+    sel.innerHTML = "";
+    var optAll = document.createElement("option");
+    optAll.value = "all"; optAll.textContent = "Все паки (" + allUnits().length + ")";
+    sel.appendChild(optAll);
+    packs.forEach(function (p) {
+      var n = allUnits().filter(function (u) { return (u.texturepack || "default") === p; }).length;
+      var o = document.createElement("option");
+      o.value = p; o.textContent = "🎨 " + p + " (" + n + ")";
+      sel.appendChild(o);
+    });
+    if (packs.indexOf(packFilter) === -1 && packFilter !== "all") packFilter = "all";
+    sel.value = packFilter;
+  }
+
+  $("unit-pack-filter").addEventListener("change", function () {
+    packFilter = this.value;
+    renderUnitList();
+  });
+
+  /* ---- Список юнитов ---- */
+  function renderUnitList() {
+    renderPackFilter();
+    var box = $("unit-list");
+    box.innerHTML = "";
+    var list = allUnits();
+    if (packFilter !== "all") {
+      list = list.filter(function (u) { return (u.texturepack || "default") === packFilter; });
+    }
+    if (!list.length) {
+      var e = document.createElement("div");
+      e.className = "empty";
+      e.textContent = "В этом пакке пока нет юнитов";
+      box.appendChild(e);
+    }
+    for (var i = 0; i < list.length; i++) {
+      (function (u) {
+        var card = document.createElement("div");
+        card.className = "card unit-card";
+
+        var icon = document.createElement("div");
+        icon.className = "iconwrap";
+        HCImage.renderInto(icon, u.imageId);
+        var img = icon.querySelector("img"); if (img) img.className = "icon";
+
+        var mid = document.createElement("div");
+        mid.className = "unit-mid";
+        var name = document.createElement("div");
+        name.className = "cname";
+        name.textContent = u.name;
+        var summ = document.createElement("div");
+        summ.className = "usummary";
+        summ.textContent = unitSummary(u);
+        mid.appendChild(name);
+        mid.appendChild(summ);
+
+        var tag = document.createElement("div");
+        tag.className = "ctag";
+        tag.textContent = "🎨 " + (u.texturepack || "default");
+
+        card.appendChild(icon);
+        card.appendChild(mid);
+        card.appendChild(tag);
+
+        if (u.readonly) {
+          var lock = document.createElement("span");
+          lock.className = "lock";
+          lock.textContent = "🔒";
+          card.appendChild(lock);
+        }
+
+        card.addEventListener("click", function () { openUnitForm(u.id); });
+        box.appendChild(card);
+      })(list[i]);
+    }
+  }
+
+  /* ---- Форма юнита: черновик ---- */
+  var editingUnitId = null;
+  var unitDraftImageId = null;
+  var unitCostDraft = [];    // [{resourceId,value}]
+  var unitUpkeepDraft = [];  // [{resourceId,value}]
+
+  function setSwitch(id, val) { $(id).checked = !!val; }
+  function numVal(id, fb) {
+    var v = parseFloat($(id).value);
+    return isNaN(v) ? fb : v;
+  }
+
+  function syncConditionalFields() {
+    var ap = $("unit-area-protect").checked;
+    $("area-fields").style.display = ap ? "" : "none";
+    var deltaOn = $("unit-cost-grow").checked || $("unit-cost-shrink").checked;
+    $("cost-delta-fields").style.display = deltaOn ? "" : "none";
+    var up = $("unit-upkeep-enabled").checked;
+    $("upkeep-fields").style.display = up ? "" : "none";
+  }
+  ["unit-area-protect", "unit-cost-grow", "unit-cost-shrink", "unit-upkeep-enabled"].forEach(function (id) {
+    $(id).addEventListener("change", syncConditionalFields);
+  });
+
+  /* ---- Списки ресурсов (стоимость / расход) ---- */
+  function renderResList(boxId, arr) {
+    var box = $(boxId);
+    box.innerHTML = "";
+    if (!arr.length) {
+      var e = document.createElement("div");
+      e.className = "empty";
+      e.textContent = "нет ресурсов — добавьте кнопкой ниже";
+      box.appendChild(e);
+      return;
+    }
+    arr.forEach(function (entry, idx) {
+      (function (entry, idx) {
+        var row = document.createElement("div");
+        row.className = "resrow";
+
+        var ic = document.createElement("div");
+        ic.className = "iconwrap mini";
+        HCImage.renderInto(ic, (findResource(entry.resourceId) || {}).imageId);
+        var im = ic.querySelector("img"); if (im) { im.className = "icon"; }
+
+        var nm = document.createElement("span");
+        nm.className = "rname";
+        nm.textContent = resName(entry.resourceId);
+
+        var inp = document.createElement("input");
+        inp.type = "number"; inp.step = "0.5"; inp.min = "0";
+        inp.inputMode = "decimal";
+        inp.className = "rvalue";
+        inp.value = entry.value;
+        inp.addEventListener("input", function () {
+          var v = parseFloat(this.value);
+          entry.value = isNaN(v) ? 0 : v;
+        });
+
+        var del = document.createElement("button");
+        del.className = "rdel";
+        del.textContent = "✕";
+        del.title = "Убрать ресурс";
+        del.addEventListener("click", function () {
+          arr.splice(idx, 1);
+          renderResList(boxId, arr);
+        });
+
+        row.appendChild(ic);
+        row.appendChild(nm);
+        row.appendChild(inp);
+        row.appendChild(del);
+        box.appendChild(row);
+      })(entry, idx);
+    });
+  }
+
+  function renderUnitLists() {
+    renderResList("unit-cost-list", unitCostDraft);
+    renderResList("unit-upkeep-list", unitUpkeepDraft);
+  }
+
+  /* ---- Модалка выбора ресурса ---- */
+  var resPickerCallback = null;
+  function openResPicker(onPick) {
+    resPickerCallback = onPick;
+    var box = $("respicker-list");
+    box.innerHTML = "";
+    allResources().forEach(function (res) {
+      (function (res) {
+        var card = document.createElement("div");
+        card.className = "card";
+        var icon = document.createElement("div");
+        icon.className = "iconwrap";
+        HCImage.renderInto(icon, res.imageId);
+        var im = icon.querySelector("img"); if (im) im.className = "icon";
+        var tile = icon.querySelector(".emoji-tile"); if (tile) tile.classList.add("icon");
+        var nm = document.createElement("div");
+        nm.className = "cname";
+        nm.textContent = res.name;
+        card.appendChild(icon);
+        card.appendChild(nm);
+        card.addEventListener("click", function () {
+          $("modal-respicker").classList.add("hidden");
+          resPickerCallback = null;
+          onPick(res.id);
+        });
+        box.appendChild(card);
+      })(res);
+    });
+    $("modal-respicker").classList.remove("hidden");
+  }
+  $("respicker-cancel").addEventListener("click", function () {
+    $("modal-respicker").classList.add("hidden");
+    resPickerCallback = null;
+  });
+  $("modal-respicker").addEventListener("click", function (e) {
+    if (e.target === this) { this.classList.add("hidden"); resPickerCallback = null; }
+  });
+
+  $("unit-add-cost").addEventListener("click", function () {
+    if (isUnitReadonly(findUnit(editingUnitId))) return;
+    openResPicker(function (rid) {
+      if (unitCostDraft.some(function (c) { return c.resourceId === rid; })) {
+        toast("Этот ресурс уже в стоимости");
+        return;
+      }
+      unitCostDraft.push({ resourceId: rid, value: 10 });
+      renderUnitLists();
+    });
+  });
+  $("unit-add-upkeep").addEventListener("click", function () {
+    if (isUnitReadonly(findUnit(editingUnitId))) return;
+    openResPicker(function (rid) {
+      if (unitUpkeepDraft.some(function (c) { return c.resourceId === rid; })) {
+        toast("Этот ресурс уже в расходе");
+        return;
+      }
+      unitUpkeepDraft.push({ resourceId: rid, value: 1 });
+      renderUnitLists();
+    });
+  });
+
+  /* ---- Открытие формы юнита ---- */
+  function fillUnitForm(u, ro) {
+    unitDraftImageId = u.imageId;
+    unitCostDraft = JSON.parse(JSON.stringify(u.cost || []));
+    unitUpkeepDraft = JSON.parse(JSON.stringify(u.upkeep || []));
+
+    $("unitedit-title").textContent = ro ? "🔒 Стандартный юнит" : "Редактирование юнита";
+    var nameInp = $("unit-name");
+    nameInp.value = u.name || "";
+    nameInp.readOnly = ro;
+
+    $("unit-armor").value = u.armor != null ? u.armor : 0;
+    setSwitch("unit-area-protect", u.areaProtect);
+    $("unit-area-size").value = u.areaSize != null ? u.areaSize : 1;
+    setSwitch("unit-enter-same", u.canEnterSameArea);
+    setSwitch("unit-kill-same", u.canKillSameArmor);
+    setSwitch("unit-cost-grow", u.costGrow);
+    setSwitch("unit-cost-shrink", u.costShrinkOnKill);
+    $("unit-cost-delta").value = u.costDelta != null ? u.costDelta : 0;
+    setSwitch("unit-upkeep-enabled", u.upkeepEnabled);
+    setSwitch("unit-die-on-empty", u.dieOnEmpty);
+    $("unit-texturepack").value = u.texturepack || "default";
+
+    var inputs = document.querySelectorAll("#screen-unitedit input:not(.btn-back-input), #screen-unitedit button:not(.btn-back)");
+    for (var i = 0; i < inputs.length; i++) inputs[i].disabled = ro;
+
+    $("unitedit-delete").style.display = ro ? "none" : "";
+    var badge = $("unitedit-badge");
+    badge.textContent = ro ? "только просмотр" : "свой юнит";
+
+    syncConditionalFields();
+    renderUnitLists();
+    renderUnitPreview();
+  }
+
+  function renderUnitPreview() {
+    var wrap = $("unitedit-preview");
+    wrap.innerHTML = "";
+    HCImage.renderInto(wrap, unitDraftImageId);
+    var img = wrap.querySelector("img");
+    if (img) img.removeAttribute("class");
+    if (!img && !wrap.querySelector(".emoji-tile")) wrap.textContent = "картинка не выбрана";
+  }
+
+  function openUnitForm(id) {
+    var u = findUnit(id);
+    if (!u) return;
+    editingUnitId = id;
+    fillUnitForm(u, isUnitReadonly(u));
+    navStack.push(currentScreen());
+    showScreen("unitedit");
+  }
+
+  /* Выбор картинки для юнита (общая модалка картинок) */
+  $("unit-pickimg").addEventListener("click", function () {
+    if (isUnitReadonly(findUnit(editingUnitId))) return;
+    openImgPicker(function (imageId) {
+      unitDraftImageId = imageId;
+      renderUnitPreview();
+    });
+  });
+
+  /* ---- Сохранение юнита ---- */
+  $("unitedit-save").addEventListener("click", function () {
+    var cur = findUnit(editingUnitId);
+    if (!cur || isUnitReadonly(cur)) return;
+
+    var name = $("unit-name").value.trim();
+    if (!name) { toast("⚠ Введите название юнита"); return; }
+    if (!unitDraftImageId) { toast("⚠ Выберите картинку юнита"); return; }
+
+    var armor = numVal("unit-armor", 0);
+    if (armor < 0) armor = 0;
+    var areaProtect = $("unit-area-protect").checked;
+    var areaSize = Math.max(1, Math.round(numVal("unit-area-size", 1)));
+    var costDelta = Math.max(0, numVal("unit-cost-delta", 0));
+
+    if (!unitCostDraft.length) { toast("⚠ Добавьте хотя бы один ресурс в стоимость"); return; }
+    var bad = unitCostDraft.concat(unitUpkeepDraft).some(function (c) {
+      return !findResource(c.resourceId) || c.value <= 0;
+    });
+    if (bad) { toast("⚠ Проверьте ресурсы и значения (должны быть > 0)"); return; }
+
+    var u = {
+      id: editingUnitId,
+      name: name,
+      imageId: unitDraftImageId,
+      texturepack: $("unit-texturepack").value.trim() || "default",
+      armor: armor,
+      areaProtect: areaProtect,
+      areaSize: areaSize,
+      canKillSameArmor: $("unit-kill-same").checked,
+      canEnterSameArea: $("unit-enter-same").checked,
+      cost: unitCostDraft,
+      costGrow: $("unit-cost-grow").checked,
+      costShrinkOnKill: $("unit-cost-shrink").checked,
+      costDelta: costDelta,
+      upkeepEnabled: $("unit-upkeep-enabled").checked,
+      upkeep: unitUpkeepDraft,
+      dieOnEmpty: $("unit-die-on-empty").checked
+    };
+
+    var own = HCStorage.getUnits();
+    var found = false;
+    for (var i = 0; i < own.length; i++) {
+      if (own[i].id === editingUnitId) { own[i] = u; found = true; break; }
+    }
+    if (!found) own.push(u);
+
+    if (HCStorage.saveUnits(own)) {
+      toast("💾 Юнит «" + name + "» сохранён");
+      goBack("uniteditor");
+      renderUnitList();
+    }
+  });
+
+  /* ---- Удаление юнита ---- */
+  $("unitedit-delete").addEventListener("click", function () {
+    var u = findUnit(editingUnitId);
+    if (!u || isUnitReadonly(u)) return;
+    if (!confirm("Удалить юнита «" + u.name + "»?")) return;
+    var own = HCStorage.getUnits().filter(function (x) { return x.id !== editingUnitId; });
+    HCStorage.saveUnits(own);
+    toast("🗑 Юнит удалён");
+    goBack("uniteditor");
+    renderUnitList();
+  });
+
+  /* ---- Создание своего юнита ---- */
+  $("btn-new-unit").addEventListener("click", function () {
+    var id = "unit_" + Date.now();
+    var firstImg = HCData.builtinImages.length ? HCData.builtinImages[0].id : null;
+    var tpl = {
+      id: id, name: "", imageId: firstImg,
+      texturepack: "default",
+      armor: 0, areaProtect: false, areaSize: 1,
+      canKillSameArmor: false, canEnterSameArea: false,
+      cost: [], costGrow: false, costShrinkOnKill: false, costDelta: 0,
+      upkeepEnabled: false, upkeep: [], dieOnEmpty: false
+    };
+    editingUnitId = id;
+    fillUnitForm(tpl, false);
+    $("unit-name").placeholder = "Название нового юнита";
+    navStack.push(currentScreen());
+    showScreen("unitedit");
+    $("unit-name").focus();
+    toast("Создайте юнита: картинка + параметры");
+  });
+
+  function openUnitEditor() {
+    renderUnitList();
+    renderImageList();
+    showScreen("uniteditor");
   }
 
   showScreen("main");

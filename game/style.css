@@ -239,3 +239,74 @@ html, body {
   .screen { max-width: 640px; }
   .btn { font-size: 18px; }
 }
+
+/* ==== Редактор юнитов ==== */
+.select {
+  background: var(--bg2); border: 1px solid #3a4a75; color: var(--text);
+  border-radius: 10px; padding: 12px 14px; font-size: 16px; outline: none; width: 100%;
+}
+.unit-card .unit-mid { flex: 1; min-width: 0; }
+.usummary { font-size: 12px; color: var(--muted); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; }
+.unit-preview img {
+  width: 110px; height: 110px; object-fit: contain;
+  background: var(--panel); border: 1px dashed #45527a; border-radius: 16px;
+  padding: 8px; image-rendering: pixelated;
+}
+.unit-preview .emoji-tile { width: 110px; height: 110px; font-size: 56px; }
+
+.switch-field {
+  display: flex; align-items: center; gap: 12px; cursor: pointer;
+  background: var(--panel); border: 1px solid #354266; border-radius: 12px;
+  padding: 12px 14px; user-select: none;
+}
+.switch-field input[type=checkbox] {
+  appearance: none; -webkit-appearance: none; flex: none;
+  width: 46px; height: 26px; border-radius: 20px;
+  background: var(--bg2); border: 1px solid #3a4a75; position: relative;
+  transition: background .15s ease, border-color .15s ease; cursor: pointer;
+}
+.switch-field input[type=checkbox]::after {
+  content: ""; position: absolute; top: 2px; left: 2px;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: #8fa0c9; transition: transform .15s ease, background .15s ease;
+}
+.switch-field input[type=checkbox]:checked { background: var(--accent); border-color: var(--accent); }
+.switch-field input[type=checkbox]:checked::after { transform: translateX(20px); background: #fff; }
+.switch-field > span { font-size: 15px; font-weight: 600; }
+.switch-field small { font-weight: 400; }
+
+.subfields {
+  display: flex; flex-direction: column; gap: 12px;
+  margin-left: 14px; padding: 12px 14px;
+  border-left: 3px solid rgba(255,179,44,.5);
+  background: rgba(255,179,44,.05); border-radius: 0 12px 12px 0;
+}
+.section-title { font-size: 16px; font-weight: 800; color: var(--accent); margin-top: 6px; }
+.small-btn { font-size: 14px; padding: 10px 14px; margin-top: 0; }
+
+.field input[type=number] {
+  background: var(--bg2); border: 1px solid #3a4a75; color: var(--text);
+  border-radius: 10px; padding: 12px 14px; font-size: 16px; outline: none; width: 100%;
+}
+.field input[type=number]:focus { border-color: var(--accent2); }
+
+.reslist { display: flex; flex-direction: column; gap: 8px; }
+.resrow {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--panel); border: 1px solid #354266; border-radius: 12px; padding: 8px 10px;
+}
+.resrow .iconwrap.mini { width: 34px; height: 34px; }
+.resrow .iconwrap.mini img.icon, .resrow .iconwrap.mini .emoji-tile { width: 34px; height: 34px; font-size: 18px; }
+.resrow .rname { flex: 1; font-weight: 700; font-size: 15px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.resrow .rvalue {
+  width: 88px; background: var(--bg2); border: 1px solid #3a4a75; color: var(--text);
+  border-radius: 10px; padding: 9px 10px; font-size: 15px; text-align: right; outline: none;
+}
+.resrow .rvalue:focus { border-color: var(--accent2); }
+.resrow .rdel {
+  flex: none; width: 30px; height: 30px; border-radius: 50%;
+  border: none; background: #d84040; color: #fff; font-size: 14px; line-height: 1; cursor: pointer;
+}
+#screen-unitedit input[disabled], #screen-unitedit button[disabled], #screen-unitedit .switch-field input[disabled] {
+  opacity: .5; pointer-events: none;
+}
