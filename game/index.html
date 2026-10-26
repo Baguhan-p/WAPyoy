@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>HexCraft — Игра</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ======== ГЛАВНОЕ МЕНЮ ======== -->
+<div id="screen-main" class="screen active">
+  <div class="logo-box">
+    <div class="logo-hex">⬡</div>
+    <h1 class="logo-title">HexCraft</h1>
+    <p class="logo-sub">мобильная / ПК стратегия с песочницей и модами</p>
+  </div>
+  <div class="menu">
+    <button class="btn btn-primary" data-nav="play">▶ Играть</button>
+    <button class="btn" data-nav="load">💾 Загрузить сохранение</button>
+    <button class="btn" data-nav="map-editor">🗺 Редактор карт</button>
+    <button class="btn" data-nav="mod-editor">🧩 Редактор модов</button>
+    <button class="btn" data-nav="about">ℹ Об игре</button>
+  </div>
+  <div class="version">v0.1.0 (прототип)</div>
+</div>
+
+<!-- ======== РЕДАКТОР МОДОВ (выбор редакторов) ======== -->
+<div id="screen-modeditor" class="screen">
+  <header class="topbar">
+    <button class="btn btn-back" data-nav="main">← Назад</button>
+    <h2>🧩 Редактор модов</h2>
+    <span class="topbar-space"></span>
+  </header>
+  <div class="menu">
+    <button class="btn" data-nav="celleditor">⬡ Редактор клеток (шестиугольники)</button>
+    <button class="btn" data-nav="uniteditor">🛡 Редактор юнитов</button>
+    <button class="btn" data-nav="buildeditor">🏠 Редактор зданий</button>
+    <button class="btn btn-primary" data-nav="reseditor">💰 Редактор ресурсов</button>
+    <button class="btn" data-nav="objeditor">📦 Редактор объектов</button>
+  </div>
+</div>
+
+<!-- ======== РЕДАКТОР РЕСУРСОВ ======== -->
+<div id="screen-reseditor" class="screen">
+  <header class="topbar">
+    <button class="btn btn-back" data-nav="modeditor">← Назад</button>
+    <h2>💰 Редактор ресурсов</h2>
+    <span class="topbar-space"></span>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="resources">Ресурсы</button>
+    <button class="tab" data-tab="images">Картинки</button>
+  </div>
+
+  <!-- ---- Вкладка: ресурсы ---- -->
+  <div id="tab-resources" class="tabpage active">
+    <div class="hint">
+      Стандартные ресурсы (помечены 🔒) изменять и удалять нельзя — они вшиты в игру.
+      Свои ресурсы можно создавать на основе любых картинок.
+    </div>
+    <div id="resource-list" class="cards"></div>
+    <button id="btn-new-resource" class="btn btn-primary block">＋ Создать свой ресурс</button>
+  </div>
+
+  <!-- ---- Вкладка: картинки ---- -->
+  <div id="tab-images" class="tabpage">
+    <div class="hint">
+      Выбор готовой картинки из встроенных в игру или загрузка своей (файл работает и на телефоне).
+      Свои картинки хранятся локально и переживают перезапуск и сборку в APK/EXE.
+    </div>
+    <div id="image-list" class="imggrid"></div>
+    <label class="btn btn-primary block filebtn">
+      📁 Добавить свою картинку…
+      <input id="file-image" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+    </label>
+  </div>
+</div>
+
+<!-- ======== ФОРМА РЕДАКТИРОВАНИЯ РЕСУРСА ======== -->
+<div id="screen-recedit" class="screen">
+  <header class="topbar">
+    <button class="btn btn-back" data-nav="reseditor-back">← Назад</button>
+    <h2 id="recedit-title">Ресурс</h2>
+    <span class="topbar-space"></span>
+  </header>
+  <div class="form">
+    <div class="preview-box">
+      <img id="recedit-preview" alt="превью">
+      <div id="recedit-badge" class="badge"></div>
+    </div>
+
+    <label class="field">
+      <span>Название ресурса</span>
+      <input id="recedit-name" type="text" maxlength="30" placeholder="Например: Золото">
+    </label>
+
+    <div class="field">
+      <span>Картинка ресурса</span>
+      <button id="recedit-pickimg" class="btn">🖼 Выбрать / заменить картинку…</button>
+    </div>
+
+    <div class="btnrow">
+      <button id="recedit-save" class="btn btn-primary grow">💾 Сохранить</button>
+      <button id="recedit-delete" class="btn btn-danger">🗑 Удалить</button>
+    </div>
+  </div>
+</div>
+
+<!-- ======== МОДАЛЬНОЕ ОКНО: ВЫБОР КАРТИНКИ ======== -->
+<div id="modal-imgpicker" class="modal hidden">
+  <div class="modal-panel">
+    <h3>Выбор картинки</h3>
+    <div class="modal-scroll">
+      <p class="modal-section">Встроенные в игру</p>
+      <div id="picker-builtin" class="imggrid small"></div>
+      <p class="modal-section">Мои загруженные</p>
+      <div id="picker-custom" class="imggrid small"></div>
+    </div>
+    <label class="btn block filebtn">
+      📁 Загрузить новую картинку…
+      <input id="file-image2" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+    </label>
+    <button id="picker-cancel" class="btn block">Отмена</button>
+  </div>
+</div>
+
+<!-- ======== ЗАГЛУШКИ ======== -->
+<div id="screen-placeholder" class="screen">
+  <header class="topbar">
+    <button class="btn btn-back" data-nav="back-ph">← Назад</button>
+    <h2 id="ph-title">Раздел</h2>
+    <span class="topbar-space"></span>
+  </header>
+  <div class="coming">
+    <div class="coming-icon">🚧</div>
+    <p id="ph-text">Этот раздел появится в следующих версиях.</p>
+  </div>
+</div>
+
+<!-- ======== ОБ ИГРЕ ======== -->
+<div id="screen-about" class="screen">
+  <header class="topbar">
+    <button class="btn btn-back" data-nav="main">← Назад</button>
+    <h2>ℹ Об игре</h2>
+    <span class="topbar-space"></span>
+  </header>
+  <div class="about">
+    <h3>HexCraft v0.1.0</h3>
+    <p>Мобильная и ПК игра-стратегия с шестиугольной картой, полной кастомизацией
+       и поддержкой модов. Без искусственного интеллекта — только игрок и его фантазия.</p>
+    <ul>
+      <li>⬡ Шестиугольная карта</li>
+      <li>🧩 Полные редакторы: клетки, юниты, здания, ресурсы, объекты</li>
+      <li>💾 Сохранения и загрузка (в т.ч. пользовательские картинки)</li>
+      <li>📱 Работает на телефоне и ПК, экспорт в APK и EXE</li>
+    </ul>
+    <p class="muted">Все пользовательские данные хранятся локально на вашем устройстве.</p>
+  </div>
+</div>
+
+<!-- ======== ТОСТ-УВЕДОМЛЕНИЯ ======== -->
+<div id="toast" class="toast hidden"></div>
+
+<script src="storage.js"></script>
+<script src="data.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
