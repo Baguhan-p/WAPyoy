@@ -7,11 +7,10 @@
   /* ================= Навигация между экранами ================= */
   var navStack = [];
   var PLACEHOLDERS = {
-    "play":        ["▶ Играть", "Геймплей появится в следующей версии. Сейчас доступны редакторы ресурсов и юнитов!"],
+    "play":        ["▶ Играть", "Геймплей появится в следующей версии. Сейчас доступны редакторы ресурсов, юнитов и зданий!"],
     "load":        ["💾 Загрузить сохранение", "Сохранения появятся вместе с режимом игры."],
-    "map-editor":  ["🗺 Редактор карт", "Редактор шестиугольных карт — в разработке. Там можно будет выбрать текстурпак — игра автоматически включит группу юнитов этого пака на время партии."],
+    "map-editor":  ["🗺 Редактор карт", "Редактор шестиугольных карт — в разработке. Там можно будет выбрать текстурпак — игра автоматически включит группу юнитов и зданий этого пака на время партии."],
     "celleditor":  ["⬡ Редактор клеток", "Редактор типов клеток-шестиугольников — в разработке."],
-    "buildeditor": ["🏠 Редактор зданий", "Редактор зданий — в разработке."],
     "objeditor":   ["📦 Редактор объектов", "Редактор объектов карты — в разработке."]
   };
 
@@ -35,6 +34,7 @@
     if (target === "mod-editor") { showScreen("modeditor"); return; }
     if (target === "reseditor") { openResourceEditor(); return; }
     if (target === "uniteditor") { openUnitEditor(); return; }
+    if (target === "buildeditor") { openBuildEditor(); return; }
 
     if (PLACEHOLDERS[target]) {
       $("ph-title").textContent = PLACEHOLDERS[target][0];
@@ -52,6 +52,7 @@
     }
     if (prev === "reseditor") openResourceEditor();
     else if (prev === "uniteditor") openUnitEditor();
+    else if (prev === "buildeditor") openBuildEditor();
     else showScreen(prev || "main");
   }
 
@@ -63,6 +64,7 @@
     if (nav === "back-ph") { goBack(); return; }
     if (nav === "reseditor-back") { goBack("reseditor"); return; }
     if (nav === "uniteditor-back") { goBack("uniteditor"); return; }
+    if (nav === "buildeditor-back") { goBack("buildeditor"); return; }
     if (nav === "main") { navStack = []; showScreen("main"); return; }
     navigate(nav);
   });
@@ -230,6 +232,13 @@
     var usedByUnit = HCStorage.getUnits().filter(function (u) { return u.imageId === id; });
     if (usedByUnit.length > 0) {
       toast("⚠ Картинку использует юнит «" + usedByUnit[0].name + "» — сначала замените её у юнита");
+      return;
+    }
+    var usedByBuilding = HCStorage.getBuildings().filter(function (b) {
+      return (b.imageIds || []).indexOf(id) !== -1;
+    });
+    if (usedByBuilding.length > 0) {
+      toast("⚠ Картинку использует здание «" + usedByBuilding[0].name + "» — сначала уберите её у здания");
       return;
     }
     if (!confirm("Удалить картинку «" + name + "»?")) return;
@@ -633,6 +642,7 @@
       box.appendChild(e);
       return;
     }
+    var allowNegative = boxId === "build-income-list";
     arr.forEach(function (entry, idx) {
       (function (entry, idx) {
         var row = document.createElement("div");
@@ -648,7 +658,8 @@
         nm.textContent = resName(entry.resourceId);
 
         var inp = document.createElement("input");
-        inp.type = "number"; inp.step = "0.5"; inp.min = "0";
+        inp.type = "number"; inp.step = "0.5";
+        inp.min = allowNegative ? "" : "0";
         inp.inputMode = "decimal";
         inp.className = "rvalue";
         inp.value = entry.value;
@@ -894,6 +905,402 @@
     renderUnitList();
     renderImageList();
     showScreen("uniteditor");
+  }
+
+  /* =================================================================
+   *                    РЕДАКТОР ЗДАНИЙ
+   * ================================================================= */
+
+  /* Все здания: стандартные (readonly) + свои из HCStorage */
+  function allBuildings() {
+    return HCData.defaultBuildings.concat(HCStorage.getBuildings());
+  }
+  function findBuilding(id) {
+    var list = allBuildings();
+    for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
+    return null;
+  }
+  function isBuildingReadonly(b) { return !!(b && b.readonly); }
+
+  function buildingSummary(b) {
+    var parts = ["🛡 " + fmtNum(b.armor || 0)];
+    if (b.capital) parts.push("⭐ столица");
+    if (b.capturable) parts.push("⚑ захват (окружить " + fmtNum(b.captureRadius || 1) + ")");
+    if (b.areaProtect) parts.push("⬡ зона " + fmtNum(b.areaSize || 1) + (b.protectSelf ? "+себя" : ""));
+    var costStr = (b.cost || []).map(function (c) { return fmtNum(c.value) + " " + resName(c.resourceId); }).join(" + ");
+    parts.push("💰 " + (costStr ? costStr : "бесплатно"));
+    if (b.incomeEnabled && (b.income || []).length) {
+      parts.push("⚙ " + b.income.map(function (c) {
+        return (c.value > 0 ? "+" : "") + fmtNum(c.value) + "/ход";
+      }).join(" · "));
+    }
+    parts.push("🖼 " + (b.imageIds || []).length);
+    return parts.join(" · ");
+  }
+
+  /* ---- Фильтр по текстурпаку (среди юнитов И зданий) ---- */
+  var buildPackFilter = "all";
+
+  function allBuildingTexturepacks() {
+    var seen = {}, out = [];
+    allUnits().concat(allBuildings()).forEach(function (x) {
+      var p = (x.texturepack || "default").trim() || "default";
+      if (!seen[p]) { seen[p] = true; out.push(p); }
+    });
+    return out.sort();
+  }
+
+  function renderBuildPackFilter() {
+    var sel = $("build-pack-filter");
+    var packs = allBuildingTexturepacks();
+    sel.innerHTML = "";
+    var optAll = document.createElement("option");
+    optAll.value = "all"; optAll.textContent = "Все паки (" + allBuildings().length + ")";
+    sel.appendChild(optAll);
+    packs.forEach(function (p) {
+      var n = allBuildings().filter(function (b) { return (b.texturepack || "default") === p; }).length;
+      var o = document.createElement("option");
+      o.value = p; o.textContent = "🎨 " + p + " (" + n + ")";
+      sel.appendChild(o);
+    });
+    if (packs.indexOf(buildPackFilter) === -1 && buildPackFilter !== "all") buildPackFilter = "all";
+    sel.value = buildPackFilter;
+  }
+
+  $("build-pack-filter").addEventListener("change", function () {
+    buildPackFilter = this.value;
+    renderBuildList();
+  });
+
+  /* ---- Список зданий ---- */
+  function renderBuildList() {
+    renderBuildPackFilter();
+    var box = $("build-list");
+    box.innerHTML = "";
+    var list = allBuildings();
+    if (buildPackFilter !== "all") {
+      list = list.filter(function (b) { return (b.texturepack || "default") === buildPackFilter; });
+    }
+    if (!list.length) {
+      var e = document.createElement("div");
+      e.className = "empty";
+      e.textContent = "В этом пакке пока нет зданий";
+      box.appendChild(e);
+    }
+    for (var i = 0; i < list.length; i++) {
+      (function (b) {
+        var card = document.createElement("div");
+        card.className = "card unit-card";
+
+        var icon = document.createElement("div");
+        icon.className = "iconwrap";
+        HCImage.renderInto(icon, (b.imageIds || [])[0]);
+        var img = icon.querySelector("img"); if (img) img.className = "icon";
+
+        var mid = document.createElement("div");
+        mid.className = "unit-mid";
+        var name = document.createElement("div");
+        name.className = "cname";
+        name.textContent = b.name;
+        var summ = document.createElement("div");
+        summ.className = "usummary";
+        summ.textContent = buildingSummary(b);
+        mid.appendChild(name);
+        mid.appendChild(summ);
+
+        var tag = document.createElement("div");
+        tag.className = "ctag";
+        tag.textContent = "🎨 " + (b.texturepack || "default");
+
+        card.appendChild(icon);
+        card.appendChild(mid);
+        card.appendChild(tag);
+
+        if (b.readonly) {
+          var lock = document.createElement("span");
+          lock.className = "lock";
+          lock.textContent = "🔒";
+          card.appendChild(lock);
+        }
+
+        card.addEventListener("click", function () { openBuildForm(b.id); });
+        box.appendChild(card);
+      })(list[i]);
+    }
+  }
+
+  /* ---- Форма здания: черновики ---- */
+  var editingBuildId = null;
+  var buildImagesDraft = [];   // [imageId,...]
+  var buildCostDraft = [];     // [{resourceId,value}]
+  var buildIncomeDraft = [];   // [{resourceId,value}] (value может быть отрицательным — убыток)
+
+  function syncBuildConditionalFields() {
+    $("capture-fields").style.display = $("build-capturable").checked ? "" : "none";
+    $("barea-fields").style.display = $("build-area-protect").checked ? "" : "none";
+    var deltaOn = $("build-cost-grow").checked || $("build-cost-shrink").checked;
+    $("bcost-delta-fields").style.display = deltaOn ? "" : "none";
+    $("income-fields").style.display = $("build-income-enabled").checked ? "" : "none";
+  }
+  ["build-capital", "build-capturable", "build-area-protect",
+   "build-cost-grow", "build-cost-shrink", "build-income-enabled"].forEach(function (id) {
+    $(id).addEventListener("change", syncBuildConditionalFields);
+  });
+
+  function renderBuildLists() {
+    renderResList("build-cost-list", buildCostDraft);
+    renderResList("build-income-list", buildIncomeDraft);
+  }
+
+  /* Списки картинок здания (мультивыбор) */
+  function renderBuildImgStrip() {
+    var box = $("build-imglist");
+    box.innerHTML = "";
+    var cnt = $("build-imgcount");
+    cnt.textContent = buildImagesDraft.length
+      ? "(" + buildImagesDraft.length + (buildImagesDraft.length > 1 ? " — игра выберет случайную)" : ")")
+      : "(нет)";
+    if (!buildImagesDraft.length) {
+      var e = document.createElement("div");
+      e.className = "empty";
+      e.textContent = "картинки не выбраны";
+      box.appendChild(e);
+      renderBuildPreview();
+      return;
+    }
+    buildImagesDraft.forEach(function (imageId, idx) {
+      (function (imageId, idx) {
+        var cell = document.createElement("div");
+        cell.className = "imgstrip-cell";
+        HCImage.renderInto(cell, imageId);
+        var im = cell.querySelector("img"); if (im) im.removeAttribute("class");
+        var rm = document.createElement("button");
+        rm.className = "imgstrip-del";
+        rm.textContent = "✕";
+        rm.title = "Убрать картинку";
+        rm.addEventListener("click", function (ev) {
+          ev.stopPropagation();
+          buildImagesDraft.splice(idx, 1);
+          renderBuildImgStrip();
+        });
+        cell.appendChild(rm);
+        cell.addEventListener("click", function () {
+          buildPreviewIndex = idx % Math.max(1, buildImagesDraft.length);
+          renderBuildPreview();
+        });
+        box.appendChild(cell);
+      })(imageId, idx);
+    });
+    renderBuildPreview();
+  }
+
+  var buildPreviewIndex = 0;
+
+  function renderBuildPreview() {
+    var wrap = $("buildedit-preview");
+    wrap.innerHTML = "";
+    if (!buildImagesDraft.length) { wrap.textContent = "картинки не выбраны"; return; }
+    var idx = buildPreviewIndex % buildImagesDraft.length;
+    HCImage.renderInto(wrap, buildImagesDraft[idx]);
+    var img = wrap.querySelector("img");
+    if (img) img.removeAttribute("class");
+    if (!img && !wrap.querySelector(".emoji-tile")) wrap.textContent = "картинка не найдена";
+  }
+
+  /* Добавление картинки к зданию — общая модалка выбора картинок */
+  $("build-addimg").addEventListener("click", function () {
+    if (isBuildingReadonly(findBuilding(editingBuildId))) return;
+    openImgPicker(function (imageId) {
+      if (buildImagesDraft.indexOf(imageId) !== -1) { toast("Эта картинка уже добавлена"); return; }
+      buildImagesDraft.push(imageId);
+      renderBuildImgStrip();
+    });
+  });
+
+  $("build-clearimgs").addEventListener("click", function () {
+    if (isBuildingReadonly(findBuilding(editingBuildId))) return;
+    buildImagesDraft = [];
+    renderBuildImgStrip();
+  });
+
+  /* ---- Кнопки добавления ресурсов в стоимость / доход ---- */
+  $("build-add-cost").addEventListener("click", function () {
+    if (isBuildingReadonly(findBuilding(editingBuildId))) return;
+    openResPicker(function (rid) {
+      if (buildCostDraft.some(function (c) { return c.resourceId === rid; })) {
+        toast("Этот ресурс уже в стоимости");
+        return;
+      }
+      buildCostDraft.push({ resourceId: rid, value: 10 });
+      renderBuildLists();
+    });
+  });
+  $("build-add-income").addEventListener("click", function () {
+    if (isBuildingReadonly(findBuilding(editingBuildId))) return;
+    openResPicker(function (rid) {
+      if (buildIncomeDraft.some(function (c) { return c.resourceId === rid; })) {
+        toast("Этот ресурс уже в доходе");
+        return;
+      }
+      buildIncomeDraft.push({ resourceId: rid, value: 1 });
+      renderBuildLists();
+    });
+  });
+
+  /* ---- Открытие формы здания ---- */
+  function fillBuildForm(b, ro) {
+    buildImagesDraft = (b.imageIds || []).slice();
+    buildCostDraft = JSON.parse(JSON.stringify(b.cost || []));
+    buildIncomeDraft = JSON.parse(JSON.stringify(b.income || []));
+    buildPreviewIndex = 0;
+
+    $("buildedit-title").textContent = ro ? "🔒 Стандартное здание" : "Редактирование здания";
+    var nameInp = $("build-name");
+    nameInp.value = b.name || "";
+    nameInp.readOnly = ro;
+
+    setSwitch("build-capital", b.capital);
+    setSwitch("build-capturable", b.capturable);
+    $("build-capture-radius").value = b.captureRadius != null ? b.captureRadius : 1;
+    $("build-armor").value = b.armor != null ? b.armor : 0;
+    setSwitch("build-area-protect", b.areaProtect);
+    setSwitch("build-protect-self", b.protectSelf);
+    $("build-area-size").value = b.areaSize != null ? b.areaSize : 1;
+    setSwitch("build-cost-grow", b.costGrow);
+    setSwitch("build-cost-shrink", b.costShrink);
+    $("build-cost-delta").value = b.costDelta != null ? b.costDelta : 0;
+    setSwitch("build-income-enabled", b.incomeEnabled);
+    $("build-texturepack").value = b.texturepack || "default";
+
+    var inputs = document.querySelectorAll("#screen-buildedit input:not(.btn-back-input), #screen-buildedit button:not(.btn-back)");
+    for (var i = 0; i < inputs.length; i++) inputs[i].disabled = ro;
+
+    $("buildedit-delete").style.display = ro ? "none" : "";
+    var badge = $("buildedit-badge");
+    badge.textContent = ro ? "только просмотр" : "своё здание";
+
+    syncBuildConditionalFields();
+    renderBuildLists();
+    renderBuildImgStrip();
+  }
+
+  function openBuildForm(id) {
+    var b = findBuilding(id);
+    if (!b) return;
+    editingBuildId = id;
+    fillBuildForm(b, isBuildingReadonly(b));
+    navStack.push(currentScreen());
+    showScreen("buildedit");
+  }
+
+  /* ---- Сохранение здания ---- */
+  $("buildedit-save").addEventListener("click", function () {
+    var cur = findBuilding(editingBuildId);
+    if (!cur || isBuildingReadonly(cur)) return;
+
+    var name = $("build-name").value.trim();
+    if (!name) { toast("⚠ Введите название здания"); return; }
+    if (!buildImagesDraft.length) { toast("⚠ Добавьте хотя бы одну картинку здания"); return; }
+
+    var armor = numVal("build-armor", 0);
+    if (armor < 0) armor = 0;
+    var capturable = $("build-capturable").checked;
+    var captureRadius = Math.max(1, Math.round(numVal("build-capture-radius", 1)));
+    var areaProtect = $("build-area-protect").checked;
+    var areaSize = Math.max(1, Math.round(numVal("build-area-size", 1)));
+    var costDelta = Math.max(0, numVal("build-cost-delta", 0));
+
+    var badRes = buildCostDraft.concat(buildIncomeDraft).some(function (c) {
+      return !findResource(c.resourceId);
+    });
+    if (badRes) { toast("⚠ Проверьте ресурсы — какой-то был удалён"); return; }
+    if (buildCostDraft.some(function (c) { return c.value <= 0; })) {
+      toast("⚠ Значения в стоимости должны быть больше 0"); return;
+    }
+    if ($("build-income-enabled").checked && buildIncomeDraft.length &&
+        buildIncomeDraft.every(function (c) { return c.value === 0; })) {
+      toast("⚠ Доход/убыток не может быть нулевым у всех ресурсов"); return;
+    }
+
+    var b = {
+      id: editingBuildId,
+      name: name,
+      imageIds: buildImagesDraft.slice(),
+      texturepack: $("build-texturepack").value.trim() || "default",
+      capital: $("build-capital").checked,
+      capturable: capturable,
+      captureRadius: capturable ? captureRadius : 0,
+      armor: armor,
+      areaProtect: areaProtect,
+      protectSelf: areaProtect ? $("build-protect-self").checked : false,
+      areaSize: areaSize,
+      cost: buildCostDraft,
+      costGrow: $("build-cost-grow").checked,
+      costShrink: $("build-cost-shrink").checked,
+      costDelta: costDelta,
+      incomeEnabled: $("build-income-enabled").checked,
+      income: buildIncomeDraft
+    };
+
+    var own = HCStorage.getBuildings();
+    var found = false;
+    for (var i = 0; i < own.length; i++) {
+      if (own[i].id === editingBuildId) { own[i] = b; found = true; break; }
+    }
+    if (!found) own.push(b);
+
+    if (HCStorage.saveBuildings(own)) {
+      toast("💾 Здание «" + name + "» сохранён".replace("сохранён", "сохранено"));
+      goBack("buildeditor");
+      renderBuildList();
+    }
+  });
+
+  /* ---- Удаление здания ---- */
+  $("buildedit-delete").addEventListener("click", function () {
+    var b = findBuilding(editingBuildId);
+    if (!b || isBuildingReadonly(b)) return;
+    if (!confirm("Удалить здание «" + b.name + "»?")) return;
+    var own = HCStorage.getBuildings().filter(function (x) { return x.id !== editingBuildId; });
+    HCStorage.saveBuildings(own);
+    toast("🗑 Здание удалено");
+    goBack("buildeditor");
+    renderBuildList();
+  });
+
+  /* ---- Создание своего здания ---- */
+  $("btn-new-building").addEventListener("click", function () {
+    var id = "bld_" + Date.now();
+    var firstImg = HCData.builtinImages.length ? HCData.builtinImages[0].id : null;
+    var tpl = {
+      id: id, name: "", imageIds: firstImg ? [firstImg] : [],
+      texturepack: "default",
+      capital: false, capturable: false, captureRadius: 1,
+      armor: 0, areaProtect: false, protectSelf: false, areaSize: 1,
+      cost: [], costGrow: false, costShrink: false, costDelta: 0,
+      incomeEnabled: false, income: []
+    };
+    editingBuildId = id;
+    fillBuildForm(tpl, false);
+    $("build-name").placeholder = "Название нового здания";
+    navStack.push(currentScreen());
+    showScreen("buildedit");
+    $("build-name").focus();
+    toast("Создайте здание: картинки + параметры");
+  });
+
+  /* Обход картинок тапом по превью (заодно показывает «случайность») */
+  $("buildedit-preview").addEventListener("click", function () {
+    if (buildImagesDraft.length > 1) {
+      buildPreviewIndex = (buildPreviewIndex + 1) % buildImagesDraft.length;
+      renderBuildPreview();
+    }
+  });
+
+  function openBuildEditor() {
+    renderBuildList();
+    renderImageList();
+    showScreen("buildeditor");
   }
 
   showScreen("main");

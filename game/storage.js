@@ -79,6 +79,14 @@
       return lsSet("units", arr);
     },
 
+    /* ---- Пользовательские здания: [{id,name,imageIds[],...}] ---- */
+    getBuildings: function () {
+      return lsGet("buildings", []);
+    },
+    saveBuildings: function (arr) {
+      return lsSet("buildings", arr);
+    },
+
     /* ---- Прочее (сохранения игры и т.д.) ---- */
     getRaw: function (key, fb) { return lsGet(key, fb); },
     setRaw: function (key, val) { return lsSet(key, val); }

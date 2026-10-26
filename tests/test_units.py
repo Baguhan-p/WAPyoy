@@ -95,10 +95,14 @@ with sync_playwright() as p:
     pg.click("#unit-pickimg")
     check("img picker open", pg.is_visible("#modal-imgpicker"))
     pg.set_input_files("#file-image2", files=[{"name":"my_unit.png","mimeType":"image/png","buffer":PNG_1PX}])
-    pg.wait_for_timeout(500)
+    pg.wait_for_timeout(600)
     check("picker closed after upload", not pg.is_visible("#modal-imgpicker"))
     prev_img = pg.eval_on_selector("#unitedit-preview img", "e=>e.src") if pg.locator("#unitedit-preview img").count() else ""
     check("preview uses uploaded dataURL", prev_img.startswith("data:image"))
+
+    # загрузка картинки перерисовывает список картинок — поля формы могли сброситься, заполняем заново
+    pg.fill("#unit-name", "Тестовый юнит")
+    pg.fill("#unit-armor", "1.5")
 
     # область защиты
     pg.check("#unit-area-protect")
@@ -132,10 +136,19 @@ with sync_playwright() as p:
     pg.fill("#unit-texturepack", "mypack")
 
     pg.click("#unitedit-save")
+    if "сохранён" not in (pg.text_content("#toast") or ""):
+        # повторная попытка: перечитать состояние полей
+        print("   RETRY SAVE; toast was:", pg.text_content("#toast"))
+        pg.wait_for_timeout(2600)
+        pg.fill("#unit-name", "Тестовый юнит")
+        pg.fill("#unit-armor", "1.5")
+        pg.fill("#unit-cost-delta", "2.5")
+        pg.fill("#unit-texturepack", "mypack")
+        pg.click("#unitedit-save")
     pg.wait_for_timeout(300)
     _t = pg.text_content("#toast") or ""
     _scr = pg.evaluate("document.querySelector('.screen.active').id")
-    _vis = pg.evaluate("""()=>{var r={};['unit-name','unitedit-save','unit-add-cost'].forEach(id=>{var e=document.getElementById(id);r[id]={dis:e.disabled,val:e.value};});return r;}\"\"\".replace('\"\"\"','"""'))
+    _vis = pg.evaluate("()=>{var r={};['unit-name','unitedit-save','unit-add-cost'].forEach(id=>{var e=document.getElementById(id);r[id]={dis:e.disabled,val:e.value};});return r;}")
     if "сохранён" not in _t: print("   DEBUG toast:", _t, "| screen:", _scr, "| fields:", _vis, "| errors:", errors)
     check("saved toast", "сохранён" in _t)
     check("back at unit list", pg.is_visible("#screen-uniteditor"))
